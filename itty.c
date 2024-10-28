@@ -1,9 +1,25 @@
 #include <stdio.h>
 #include <curl/curl.h>
 
+int process(char *url);
 void read_data(CURLM *multi);
 
 int main(int argc,char *argv[])
+{
+    int result = 0;
+    if (argc != 2)
+    {
+        fprintf(stderr, "Usage: itty <url>\n");
+    }
+    else
+    {
+        result = process(argv[1]);
+    }
+
+    return result;
+}
+
+int process(char *url)
 {
     CURL *curl;
     CURLM *multi;
@@ -16,7 +32,7 @@ int main(int argc,char *argv[])
         multi = curl_multi_init();
         if (multi)
         {
-            curl_easy_setopt(curl, CURLOPT_URL, argv[1]);
+            curl_easy_setopt(curl, CURLOPT_URL, url);
             curl_multi_add_handle(multi, curl);
 
             read_data(multi);
