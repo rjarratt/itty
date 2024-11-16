@@ -10,7 +10,7 @@ install: itty pcntl
 	sudo install -m 0755 pcntl $(BINDIR)
 
 itty: ${ITTY}
-	$(CC) $(CC_OUTSPEC) $(ITTY) -lcurl
+	$(CC) $(CC_OUTSPEC) $(ITTY) -l curl
 
 pcntl: $(PCNTL)
-	$(CC) $(CC_OUTSPEC) $(PCNTL)
+	$(CC) $(CC_OUTSPEC) $(PCNTL) -l wiringPi

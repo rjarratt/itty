@@ -4,13 +4,14 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <time.h>
+#include <wiringPi.h>
 
 #define BUFFER_SIZE 1400
 
-int process(int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds);
-int copy_data(int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds);
-int poweron(int powerOnWaitTimeSeconds);
-int poweroff(void);
+int process(int relayPinNumber, int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds);
+int copy_data(int relayPinNumber, int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds);
+int poweron(int relayPinNumber, int powerOnWaitTimeSeconds);
+int poweroff(int relayPinNumber);
 
 int main(int argc,char *argv[])
 {
@@ -21,14 +22,16 @@ int main(int argc,char *argv[])
     }
     else
     {
-           result = process(5, 5);
+           result = process(4, 5, 5);
     }
 
     return result;
 }
 
-int process(int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds)
+int process(int relayPinNumber, int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds)
 {
+    wiringPiSetupGpio();
+    pinMode(4, OUTPUT);
     int status = fcntl(fileno(stdin), F_SETFL, O_NONBLOCK);
     if (status == -1)
     {
@@ -36,13 +39,13 @@ int process(int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds)
     }
     else
     {
-        status = copy_data(powerOnWaitTimeSeconds, powerOffWaitTimeSeconds);
+        status = copy_data(relayPinNumber, powerOnWaitTimeSeconds, powerOffWaitTimeSeconds);
     }
 
     return status;
 }
 
-int copy_data(int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds)
+int copy_data(int relayPinNumber, int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds)
 {
     char buf[BUFFER_SIZE];
     int receivingData = 0;
@@ -59,7 +62,7 @@ int copy_data(int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds)
                 double timeSinceLastData = difftime(now, timeLastDataReceived);
                 if (receivingData && timeSinceLastData > powerOffWaitTimeSeconds)
                 {
-                    poweroff();
+                    poweroff(relayPinNumber);
                     receivingData = 0;
                 }
 
@@ -70,7 +73,7 @@ int copy_data(int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds)
         {
             if (!receivingData)
             {
-                poweron(powerOnWaitTimeSeconds);
+                poweron(relayPinNumber, powerOnWaitTimeSeconds);
             }
  
             receivingData = 1;
@@ -80,13 +83,13 @@ int copy_data(int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds)
     }
 }
 
-int poweron(int powerOnWaitTimeSeconds)
+int poweron(int relayPinNumber, int powerOnWaitTimeSeconds)
 {
-    fprintf(stderr, "Powering on\n");
+    digitalWrite(relayPinNumber, HIGH);
     sleep(powerOnWaitTimeSeconds);
 }
 
-int poweroff(void)
+int poweroff(int relayPinNumber)
 {
-    fprintf(stderr, "Powering off\n");
+    digitalWrite(relayPinNumber, LOW);
 }
