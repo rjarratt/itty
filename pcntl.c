@@ -4,17 +4,23 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <time.h>
+#include <signal.h>
 #include <wiringPi.h>
 
 #define BUFFER_SIZE 1400
 
-int process(int relayPinNumber, int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds);
-int copy_data(int relayPinNumber, int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds);
-int poweron(int relayPinNumber, int powerOnWaitTimeSeconds);
-int poweroff(int relayPinNumber);
+int process(void);
+int copy_data(void);
+void poweron(void);
+void poweroff(void);
+void terminationhandler(int);
 int map_relay_number_to_pin_number(int relay);
 
 int relay_to_pin_map[] = { 4, 17, 27, 22 };
+
+int relayPinNumber = -1;
+int powerOnWaitTimeSeconds = 5;
+int powerOffWaitTimeSeconds = 30;
 
 #define NUM_RELAYS (sizeof(relay_to_pin_map)/sizeof(int))
 
@@ -22,9 +28,6 @@ int main(int argc,char *argv[])
 {
     int result = 0;
     int relay = -1;
-    int powerOnWaitTimeSeconds= 5;
-    int powerOffWaitTimeSeconds = 30;
-
     int option;
     while ((option = getopt(argc, argv, "d:w:r:")) != -1)
     {
@@ -55,24 +58,27 @@ int main(int argc,char *argv[])
     }
     else
     {
-        int pin = map_relay_number_to_pin_number(relay);
-        if (pin < 0)
+        relayPinNumber = map_relay_number_to_pin_number(relay);
+        if (relayPinNumber < 0)
         {
             fprintf(stderr, "Invalid relay number must be in the range 1-%d\n", NUM_RELAYS);
         }
         else
         {
-            result = process(pin, powerOnWaitTimeSeconds, powerOffWaitTimeSeconds);
+            result = process();
         }
     }
 
     return result;
 }
 
-int process(int relayPinNumber, int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds)
+int process()
 {
     wiringPiSetupGpio();
     pinMode(relayPinNumber, OUTPUT);
+    atexit(poweroff);
+    signal(SIGINT, terminationhandler);
+    signal(SIGQUIT, terminationhandler);
     int status = fcntl(fileno(stdin), F_SETFL, O_NONBLOCK);
     if (status == -1)
     {
@@ -80,18 +86,17 @@ int process(int relayPinNumber, int powerOnWaitTimeSeconds, int powerOffWaitTime
     }
     else
     {
-        status = copy_data(relayPinNumber, powerOnWaitTimeSeconds, powerOffWaitTimeSeconds);
+        status = copy_data();
     }
 
     return status;
 }
 
-int copy_data(int relayPinNumber, int powerOnWaitTimeSeconds, int powerOffWaitTimeSeconds)
+int copy_data()
 {
     char buf[BUFFER_SIZE];
     int receivingData = 0;
     time_t timeLastDataReceived;
-
     while(!feof(stdin))
     {
         int bytes = read(fileno(stdin), buf, BUFFER_SIZE);
@@ -103,7 +108,7 @@ int copy_data(int relayPinNumber, int powerOnWaitTimeSeconds, int powerOffWaitTi
                 double timeSinceLastData = difftime(now, timeLastDataReceived);
                 if (receivingData && timeSinceLastData > powerOffWaitTimeSeconds)
                 {
-                    poweroff(relayPinNumber);
+                    poweroff();
                     receivingData = 0;
                 }
 
@@ -114,7 +119,7 @@ int copy_data(int relayPinNumber, int powerOnWaitTimeSeconds, int powerOffWaitTi
         {
             if (!receivingData)
             {
-                poweron(relayPinNumber, powerOnWaitTimeSeconds);
+                poweron();
             }
  
             receivingData = 1;
@@ -124,13 +129,13 @@ int copy_data(int relayPinNumber, int powerOnWaitTimeSeconds, int powerOffWaitTi
     }
 }
 
-int poweron(int relayPinNumber, int powerOnWaitTimeSeconds)
+void poweron()
 {
     digitalWrite(relayPinNumber, HIGH);
     sleep(powerOnWaitTimeSeconds);
 }
 
-int poweroff(int relayPinNumber)
+void poweroff()
 {
     digitalWrite(relayPinNumber, LOW);
 }
@@ -144,4 +149,9 @@ int map_relay_number_to_pin_number(int relay)
     }
 
     return pin;
+}
+
+void terminationhandler(int sig)
+{
+    exit(0); /* causes exit handler to power off the relay */
 }
